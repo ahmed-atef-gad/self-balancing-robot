@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <MPU6050_tockn.h>
 #include <Wire.h>
+#include <PID_v1.h>
+// #include "MPU6050.h"
 
 #define enA 3
 #define in1 4
@@ -17,15 +19,20 @@
 MPU6050 mpu6050(Wire);
 
 // PID parameters
-float Kp = 1.0;  // Proportional constant
-float Ki = 1.0;   // Integral constant
-float Kd = 0.5;   // Derivative constant
+double Kp = 20.0;  // Proportional constant
+double Ki = 0.0;   // Integral constant
+double Kd = 0.0;   // Derivative constant
+double output = 0;
+double angleY = 0;
+double setpoint = 0; // Target angle (upright position)
 
-float previousError = 0;
-float integral = 0;
+PID pid(&angleY, &output, &setpoint, Kp, Ki, Kd, DIRECT);
+// float previousError = 0;
+// float integral = 0;
 
 unsigned long previousTime = 0;
-float setpoint = 0; // Target angle (upright position)
+
+float offset = 0;
 void initMpu();
 void motorControl(float speed, int direction);
 
@@ -45,32 +52,54 @@ void setup() {
   analogWrite(enB, 100);
 
   initMpu();
+  // setpoint = getAngleY();
+  setpoint = mpu6050.getAngleY();
+  // Serial.println("Robot is ready to go  (●'◡'●)");
+  Serial.print("Setpoint: ");
+  Serial.println(setpoint);
+  offset = 180 - setpoint;
+  setpoint += offset;
+  Serial.print("Setpoint: ");
+  Serial.println(setpoint);
+
+  pid.SetMode(AUTOMATIC);
+  pid.SetSampleTime(5);
+  pid.SetOutputLimits(-255, 255);
 }
 
 void loop() {
   mpu6050.update();
-  float angleY = mpu6050.getAngleY();
+  // update();
+  angleY = mpu6050.getAngleY() + offset;
+  pid.Compute();
+  // float angleY = getAngleY();
+  // Serial.print("AngleY: ");
+  // Serial.println(angleY);
 
-  unsigned long currentTime = millis();
-  float elapsedTime = (currentTime - previousTime) / 1000.0; // Convert to seconds
-  previousTime = currentTime;
+  // unsigned long currentTime = millis();
+  // float elapsedTime = (currentTime - previousTime) / 1000.0; // Convert to seconds
+  // previousTime = currentTime;
 
   // PID calculations
   
   float error = setpoint - angleY;
-  integral += error * elapsedTime;
-  float derivative = (error - previousError) / elapsedTime;
-  float output = Kp * error + Ki * integral + Kd * derivative;
+  // integral += error * elapsedTime;
+  // float derivative = (error - previousError) / elapsedTime;
+  // float output = Kp * error + Ki * integral + Kd * derivative;
 
-  previousError = error;
+  // previousError = error;
 
   // Motor control
   if (output > 0) {
     // Robot tilts forward, move motors forward
     motorControl(output, FORWARD);
+    Serial.print("error: ");
+    Serial.println(error);
   } else if (output < 0) {
     // Robot tilts backward, move motors backward
     motorControl(-output, BACKWARD);
+    Serial.print("error: ");
+    Serial.println(error);
   } else {
     // Stop motors
     motorControl(0, STOP);
@@ -84,11 +113,15 @@ void loop() {
 }
 
 void motorControl(float speed, int direction) {
-  int motorSpeed = constrain(speed, 0, 255); // Limit speed to valid PWM range (0-255)
+  
+  int motorSpeed = constrain(speed, 20, 255); // Limit speed to valid PWM range (0-255)
+  // int motorSpeed = speed;
+  Serial.print("Speed: ");
+  Serial.println(motorSpeed);
   if (direction == FORWARD) {
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
-    analogWrite(enA, 60);
+    analogWrite(enA, motorSpeed);
 
     digitalWrite(in3, HIGH);
     digitalWrite(in4, LOW);
@@ -96,7 +129,7 @@ void motorControl(float speed, int direction) {
   } else if (direction == BACKWARD) {
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
-    analogWrite(enA, 60);
+    analogWrite(enA, motorSpeed);
 
     digitalWrite(in3, LOW);
     digitalWrite(in4, HIGH);
@@ -116,6 +149,6 @@ void motorControl(float speed, int direction) {
 void initMpu() {
   mpu6050.begin();
   mpu6050.calcGyroOffsets(true);
-  setpoint = mpu6050.getAngleY();
+  // setpoint = mpu6050.getAngleY();
   Serial.println("\nRobot is ready to go  (●'◡'●)");
 }
