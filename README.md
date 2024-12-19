@@ -60,3 +60,7 @@ This project is a self-balancing robot using an Arduino Uno, MPU6050 sensor, and
 ## License
 
 This project is licensed under the MIT License.self balancing
+
+
+https://github.com/user-attachments/assets/d030b3db-32f9-4d1c-a14f-45aa04ddace5
+
